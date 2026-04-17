@@ -107,7 +107,80 @@ WHERE {self._quote_identifier(column)} IS NULL;"""
         )
 
 
-class MeanImputationStrategy(BaseNullImputationStrategy):
+class BaseNumericImputationStrategy(BaseNullImputationStrategy):
+    """Base class for numeric imputation strategies (Mean/Median).
+
+    Provides common implementation for can_apply and calculate_confidence.
+    Subclasses define:
+    - _get_profile_value(): Returns value from profile (mean or median)
+    - _get_stat_name(): Returns "mean" or "median"
+    - _adjust_pattern_clarity(): Optional hook for strategy-specific adjustments
+    """
+
+    reversibility_score: ClassVar[float] = 0.5
+
+    @abstractmethod
+    def _get_profile_value(self, context: FailureContext) -> float | None:
+        """Get the specific statistic value from profile."""
+
+    @abstractmethod
+    def _get_stat_name(self) -> str:
+        """Get the statistic name for descriptions ('mean' or 'median')."""
+
+    def _adjust_pattern_clarity(
+        self, pattern_clarity: float, context: FailureContext
+    ) -> float:
+        """Hook for strategy-specific pattern clarity adjustments.
+
+        Override in subclass to add adjustments (e.g., for outliers).
+        """
+        return pattern_clarity
+
+    def can_apply(self, context: FailureContext) -> bool:
+        if context.test_type not in self.supported_test_types:
+            return False
+        if not context.is_numeric:
+            return False
+        return (
+            context.column_profile is not None
+            and self._get_profile_value(context) is not None
+        )
+
+    def _get_imputation_value(self, context: FailureContext) -> Any:
+        return self._get_profile_value(context)
+
+    def _get_value_description(self, value: Any) -> str:
+        return f"{self._get_stat_name()} ({value})"
+
+    def calculate_confidence(self, context: FailureContext) -> ConfidenceResult:
+        if result := self._check_applicability(context):
+            return result
+
+        profile = context.column_profile
+        assert profile is not None
+
+        data_coverage = self._get_data_coverage_from_profile(context)
+        null_pct = context.null_percentage or 0
+        pattern_clarity = max(0.0, 1.0 - (null_pct / 50))
+        pattern_clarity = self._adjust_pattern_clarity(pattern_clarity, context)
+        impact_scope = self._get_impact_scope_from_null_pct(context)
+        type_match = 1.0
+
+        stat_name = self._get_stat_name().capitalize()
+        reason = f"{stat_name} imputation for {null_pct:.1f}% null values"
+        if null_pct > 20:
+            reason += " (high null % reduces confidence)"
+
+        return self._build_confidence(
+            data_coverage=data_coverage,
+            pattern_clarity=pattern_clarity,
+            impact_scope=impact_scope,
+            type_match=type_match,
+            reason=reason,
+        )
+
+
+class MeanImputationStrategy(BaseNumericImputationStrategy):
     """Replace NULL values with the column mean.
 
     Best for numeric columns with normal distribution and low null percentage.
@@ -115,51 +188,16 @@ class MeanImputationStrategy(BaseNullImputationStrategy):
 
     name = "mean_imputation"
     description = "Replace NULL values with the column mean (average)"
-    reversibility_score = 0.5
 
-    def can_apply(self, context: FailureContext) -> bool:
-        if context.test_type not in self.supported_test_types:
-            return False
-        if not context.is_numeric:
-            return False
-        return context.column_profile is not None and context.column_profile.mean is not None
-
-    def _get_imputation_value(self, context: FailureContext) -> Any:
+    def _get_profile_value(self, context: FailureContext) -> float | None:
         assert context.column_profile is not None
         return context.column_profile.mean
 
-    def _get_value_description(self, value: Any) -> str:
-        return f"mean ({value})"
-
-    def calculate_confidence(self, context: FailureContext) -> ConfidenceResult:
-        if not self.can_apply(context):
-            return ConfidenceResult(score=0.0, reason="Strategy not applicable")
-
-        profile = context.column_profile
-        assert profile is not None
-
-        data_coverage = 1.0 if profile.values_count else 0.5
-        null_pct = context.null_percentage or 0
-        pattern_clarity = max(0.0, 1.0 - (null_pct / 50))
-        reversibility = self.reversibility_score
-        impact_scope = max(0.0, 1.0 - (null_pct / 100)) if null_pct else 0.9
-        type_match = 1.0
-
-        reason = f"Mean imputation for {null_pct:.1f}% null values"
-        if null_pct > 20:
-            reason += " (high null % reduces confidence)"
-
-        return ConfidenceResult.calculate(
-            data_coverage=data_coverage,
-            pattern_clarity=pattern_clarity,
-            reversibility=reversibility,
-            impact_scope=impact_scope,
-            type_match=type_match,
-            reason=reason,
-        )
+    def _get_stat_name(self) -> str:
+        return "mean"
 
 
-class MedianImputationStrategy(BaseNullImputationStrategy):
+class MedianImputationStrategy(BaseNumericImputationStrategy):
     """Replace NULL values with the column median.
 
     Better than mean when data has outliers or is skewed.
@@ -167,52 +205,24 @@ class MedianImputationStrategy(BaseNullImputationStrategy):
 
     name = "median_imputation"
     description = "Replace NULL values with the column median"
-    reversibility_score = 0.5
 
-    def can_apply(self, context: FailureContext) -> bool:
-        if context.test_type not in self.supported_test_types:
-            return False
-        if not context.is_numeric:
-            return False
-        return context.column_profile is not None and context.column_profile.median is not None
-
-    def _get_imputation_value(self, context: FailureContext) -> Any:
+    def _get_profile_value(self, context: FailureContext) -> float | None:
         assert context.column_profile is not None
         return context.column_profile.median
 
-    def _get_value_description(self, value: Any) -> str:
-        return f"median ({value})"
+    def _get_stat_name(self) -> str:
+        return "median"
 
-    def calculate_confidence(self, context: FailureContext) -> ConfidenceResult:
-        if not self.can_apply(context):
-            return ConfidenceResult(score=0.0, reason="Strategy not applicable")
-
+    def _adjust_pattern_clarity(
+        self, pattern_clarity: float, context: FailureContext
+    ) -> float:
+        """Boost confidence if outliers detected (high coefficient of variation)."""
         profile = context.column_profile
-        assert profile is not None
-
-        data_coverage = 1.0 if profile.values_count else 0.5
-        null_pct = context.null_percentage or 0
-        pattern_clarity = max(0.0, 1.0 - (null_pct / 50))
-        reversibility = self.reversibility_score
-        impact_scope = max(0.0, 1.0 - (null_pct / 100)) if null_pct else 0.9
-        type_match = 1.0
-
-        # Boost confidence if outliers detected (high coefficient of variation)
-        if profile.std_dev and profile.mean and profile.mean != 0:
+        if profile and profile.std_dev and profile.mean and profile.mean != 0:
             cv = abs(profile.std_dev / profile.mean)
             if cv > 1.0:
-                pattern_clarity = min(1.0, pattern_clarity + 0.1)
-
-        reason = f"Median imputation for {null_pct:.1f}% null values"
-
-        return ConfidenceResult.calculate(
-            data_coverage=data_coverage,
-            pattern_clarity=pattern_clarity,
-            reversibility=reversibility,
-            impact_scope=impact_scope,
-            type_match=type_match,
-            reason=reason,
-        )
+                return min(1.0, pattern_clarity + 0.1)
+        return pattern_clarity
 
 
 class ModeImputationStrategy(BaseNullImputationStrategy):
@@ -281,28 +291,25 @@ class ModeImputationStrategy(BaseNullImputationStrategy):
         )
 
     def calculate_confidence(self, context: FailureContext) -> ConfidenceResult:
-        if not self.can_apply(context):
-            return ConfidenceResult(score=0.0, reason="Strategy not applicable")
+        if result := self._check_applicability(context):
+            return result
 
         mode_value, mode_freq = self._calculate_mode(context)
         if mode_value is None:
             return ConfidenceResult(score=0.0, reason="No mode found")
 
-        data_coverage = 0.8 if context.sample_data else 0.5
+        data_coverage = self._get_data_coverage(context)
         pattern_clarity = min(1.0, mode_freq * 2)
-        null_pct = context.null_percentage or 0
-        impact_scope = max(0.0, 1.0 - (null_pct / 100)) if null_pct else 0.9
-        reversibility = self.reversibility_score
+        impact_scope = self._get_impact_scope_from_null_pct(context)
         type_match = 0.9 if not context.is_numeric else 0.7
 
         reason = f"Mode '{mode_value}' appears in {mode_freq * 100:.1f}% of non-null values"
         if mode_freq < 0.3:
             reason += " (low dominance reduces confidence)"
 
-        return ConfidenceResult.calculate(
+        return self._build_confidence(
             data_coverage=data_coverage,
             pattern_clarity=pattern_clarity,
-            reversibility=reversibility,
             impact_scope=impact_scope,
             type_match=type_match,
             reason=reason,
@@ -342,24 +349,21 @@ class ForwardFillStrategy(FixStrategy):
         return True
 
     def calculate_confidence(self, context: FailureContext) -> ConfidenceResult:
-        if not self.can_apply(context):
-            return ConfidenceResult(score=0.0, reason="Strategy not applicable")
+        if result := self._check_applicability(context):
+            return result
 
         data_coverage = 0.7
         pattern_clarity = 0.7
-        null_pct = context.null_percentage or 0
-        impact_scope = max(0.0, 1.0 - (null_pct / 100)) if null_pct else 0.9
-        reversibility = self.reversibility_score
+        impact_scope = self._get_impact_scope_from_null_pct(context)
 
         time_cols = {"created_at", "timestamp", "date", "datetime", "updated_at"}
         type_match = 0.9 if self.order_column.lower() in time_cols else 0.7
 
         reason = f"Forward fill using '{self.order_column}' ordering"
 
-        return ConfidenceResult.calculate(
+        return self._build_confidence(
             data_coverage=data_coverage,
             pattern_clarity=pattern_clarity,
-            reversibility=reversibility,
             impact_scope=impact_scope,
             type_match=type_match,
             reason=reason,
