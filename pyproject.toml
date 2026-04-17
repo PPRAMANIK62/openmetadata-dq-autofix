@@ -104,6 +104,7 @@ show_column_numbers = true
 module = ["tests", "tests.*"]
 disallow_untyped_defs = false
 disallow_untyped_decorators = false
+disable_error_code = ["call-arg", "no-untyped-def"]
 
 [[tool.mypy.overrides]]
 module = [

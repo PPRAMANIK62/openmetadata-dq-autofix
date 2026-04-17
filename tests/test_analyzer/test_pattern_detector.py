@@ -247,7 +247,8 @@ class TestPatternDetector:
 
         outlier_patterns = [p for p in patterns if p.pattern_type == PatternType.OUTLIERS]
         assert len(outlier_patterns) == 1
-        assert outlier_patterns[0].details.get("coefficient_of_variation") > 1.0
+        cv = outlier_patterns[0].details.get("coefficient_of_variation")
+        assert cv is not None and cv > 1.0
 
     def test_detect_numeric_patterns_distribution(
         self, detector: PatternDetector, null_test_case: TestCaseResult
