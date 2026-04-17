@@ -262,6 +262,10 @@ class FixStrategy(ABC):
             Preview showing before/after samples.
         """
 
+    # -------------------------------------------------------------------------
+    # Helper methods for common patterns across strategies
+    # -------------------------------------------------------------------------
+
     def _get_table_name(self, context: FailureContext) -> str:
         """Extract simple table name for SQL."""
         fqn = context.table_fqn
@@ -279,3 +283,131 @@ class FixStrategy(ABC):
     def _quote_identifier(self, name: str) -> str:
         """Quote an identifier for SQL."""
         return f'"{name}"'
+
+    def _check_applicability(self, context: FailureContext) -> ConfidenceResult | None:
+        """Return early ConfidenceResult if strategy is not applicable.
+
+        Use at the start of calculate_confidence() to reduce boilerplate:
+
+            if result := self._check_applicability(context):
+                return result
+
+        Returns:
+            ConfidenceResult with score 0 if not applicable, None otherwise.
+        """
+        if not self.can_apply(context):
+            return ConfidenceResult(score=0.0, reason="Strategy not applicable")
+        return None
+
+    def _get_data_coverage(
+        self, context: FailureContext, base: float = 0.8, fallback: float = 0.5
+    ) -> float:
+        """Calculate data coverage factor based on sample data availability.
+
+        Args:
+            context: The failure context.
+            base: Score when sample data is available (default 0.8).
+            fallback: Score when sample data is not available (default 0.5).
+
+        Returns:
+            Data coverage score between 0.0 and 1.0.
+        """
+        return base if context.sample_data else fallback
+
+    def _get_data_coverage_from_profile(
+        self, context: FailureContext, base: float = 1.0, fallback: float = 0.5
+    ) -> float:
+        """Calculate data coverage from column profile values_count.
+
+        Args:
+            context: The failure context.
+            base: Score when profile has values_count (default 1.0).
+            fallback: Score when profile is missing or empty (default 0.5).
+
+        Returns:
+            Data coverage score between 0.0 and 1.0.
+        """
+        if context.column_profile and context.column_profile.values_count:
+            return base
+        return fallback
+
+    def _get_impact_scope_from_null_pct(self, context: FailureContext) -> float:
+        """Calculate impact scope based on null percentage.
+
+        Lower null percentage = higher confidence (smaller impact).
+
+        Returns:
+            Impact scope score between 0.0 and 1.0.
+        """
+        null_pct = context.null_percentage or 0
+        return max(0.0, 1.0 - (null_pct / 100)) if null_pct else 0.9
+
+    def _get_impact_scope_from_failed_pct(
+        self, context: FailureContext, min_score: float = 0.3, divisor: float = 50
+    ) -> float:
+        """Calculate impact scope based on failed percentage.
+
+        Lower failed percentage = higher confidence (smaller impact).
+
+        Args:
+            context: The failure context.
+            min_score: Minimum score to return (default 0.3).
+            divisor: Divisor for percentage calculation (default 50).
+
+        Returns:
+            Impact scope score between min_score and 1.0.
+        """
+        failed_pct = context.failed_percentage or 0
+        return max(min_score, 1.0 - (failed_pct / divisor))
+
+    def _build_confidence(
+        self,
+        data_coverage: float,
+        pattern_clarity: float,
+        impact_scope: float,
+        type_match: float,
+        reason: str,
+    ) -> ConfidenceResult:
+        """Build a ConfidenceResult using the strategy's reversibility_score.
+
+        Convenience method to avoid repeating `reversibility=self.reversibility_score`.
+
+        Args:
+            data_coverage: How much data we can analyze (0.0-1.0).
+            pattern_clarity: How clear the failure pattern is (0.0-1.0).
+            impact_scope: Proportion of rows affected (0.0-1.0, higher = fewer rows).
+            type_match: How well strategy matches data type (0.0-1.0).
+            reason: Human-readable reason for the confidence score.
+
+        Returns:
+            ConfidenceResult with weighted score.
+        """
+        return ConfidenceResult.calculate(
+            data_coverage=data_coverage,
+            pattern_clarity=pattern_clarity,
+            reversibility=self.reversibility_score,
+            impact_scope=impact_scope,
+            type_match=type_match,
+            reason=reason,
+        )
+
+    def _build_backup_sql(
+        self, context: FailureContext, suffix: str, where_clause: str, comment: str = ""
+    ) -> str:
+        """Generate standardized backup table SQL.
+
+        Args:
+            context: The failure context.
+            suffix: Suffix for backup table name (e.g., 'nulls', 'duplicates').
+            where_clause: WHERE clause to filter rows to backup.
+            comment: Optional comment to prepend.
+
+        Returns:
+            CREATE TABLE AS SELECT SQL statement.
+        """
+        table = self._get_full_table_ref(context)
+        table_name = self._get_table_name(context)
+        comment_line = f"-- {comment}\n" if comment else ""
+        return f"""{comment_line}CREATE TABLE {table_name}_backup_{suffix} AS
+SELECT * FROM {table}
+WHERE {where_clause};"""
