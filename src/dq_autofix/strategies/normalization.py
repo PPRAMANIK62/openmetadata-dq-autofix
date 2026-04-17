@@ -76,9 +76,7 @@ class BaseNormalizationStrategy(FixStrategy):
         if total == 0:
             pattern_clarity = 0.5
         else:
-            pattern_clarity = (
-                min(1.0, (issue_count / total) * 2) if issue_count > 0 else 0.3
-            )
+            pattern_clarity = min(1.0, (issue_count / total) * 2) if issue_count > 0 else 0.3
 
         data_coverage = self._get_data_coverage(context, base=0.9)
         impact_scope = self._get_impact_scope()

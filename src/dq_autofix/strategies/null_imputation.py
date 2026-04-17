@@ -127,9 +127,7 @@ class BaseNumericImputationStrategy(BaseNullImputationStrategy):
     def _get_stat_name(self) -> str:
         """Get the statistic name for descriptions ('mean' or 'median')."""
 
-    def _adjust_pattern_clarity(
-        self, pattern_clarity: float, context: FailureContext
-    ) -> float:
+    def _adjust_pattern_clarity(self, pattern_clarity: float, context: FailureContext) -> float:
         """Hook for strategy-specific pattern clarity adjustments.
 
         Override in subclass to add adjustments (e.g., for outliers).
@@ -141,10 +139,7 @@ class BaseNumericImputationStrategy(BaseNullImputationStrategy):
             return False
         if not context.is_numeric:
             return False
-        return (
-            context.column_profile is not None
-            and self._get_profile_value(context) is not None
-        )
+        return context.column_profile is not None and self._get_profile_value(context) is not None
 
     def _get_imputation_value(self, context: FailureContext) -> Any:
         return self._get_profile_value(context)
@@ -213,9 +208,7 @@ class MedianImputationStrategy(BaseNumericImputationStrategy):
     def _get_stat_name(self) -> str:
         return "median"
 
-    def _adjust_pattern_clarity(
-        self, pattern_clarity: float, context: FailureContext
-    ) -> float:
+    def _adjust_pattern_clarity(self, pattern_clarity: float, context: FailureContext) -> float:
         """Boost confidence if outliers detected (high coefficient of variation)."""
         profile = context.column_profile
         if profile and profile.std_dev and profile.mean and profile.mean != 0:

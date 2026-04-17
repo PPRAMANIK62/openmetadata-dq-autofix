@@ -1,4 +1,4 @@
-.PHONY: help install dev test test-cov lint format run clean docker-up docker-down docker-logs docker-ps
+.PHONY: help install dev test test-cov lint format typecheck typecheck-all run clean docker-up docker-down docker-logs docker-ps
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -32,6 +32,12 @@ format: ## Format code
 
 fix: ## Fix linting issues
 	uv run ruff check --fix src/ tests/
+
+typecheck: ## Run type checker on src
+	uv run mypy src/
+
+typecheck-all: ## Run type checker on src and tests
+	uv run mypy src/ tests/
 
 # Docker - OpenMetadata
 docker-up: ## Start OpenMetadata stack

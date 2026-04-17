@@ -108,7 +108,9 @@ class BaseDeduplicationStrategy(FixStrategy):
         impact_scope = self._get_impact_scope_from_failed_pct(context)
         type_match = self._get_type_match(order_col)
 
-        reason = f"Keep {self._get_keep_description()} by '{order_col}' ({dup_count} duplicates found)"
+        reason = (
+            f"Keep {self._get_keep_description()} by '{order_col}' ({dup_count} duplicates found)"
+        )
         if dup_values:
             reason += f", e.g.: {dup_values[:3]}"
 
