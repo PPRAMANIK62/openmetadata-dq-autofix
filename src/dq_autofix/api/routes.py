@@ -14,6 +14,7 @@ from dq_autofix.api.schemas import (
     HealthResponse,
     PatternResponse,
     PreviewDataResponse,
+    PreviewRequest,
     StrategyRecommendationResponse,
     SuggestRequest,
     SuggestResponse,
@@ -339,6 +340,34 @@ async def suggest_fix(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Suggestion failed: {e}",
         ) from e
+
+
+@router.post(
+    "/preview",
+    response_model=SuggestResponse,
+    tags=["Analysis"],
+    summary="Preview a fix for a specific strategy",
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid request"},
+        404: {"model": ErrorResponse, "description": "Test case or strategy not found"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def preview_fix(
+    request: PreviewRequest,
+    client: OpenMetadataClient = Depends(get_om_client),
+) -> SuggestResponse:
+    """Preview a fix without full analysis.
+
+    Similar to /suggest but requires explicit strategy selection.
+    Useful when you want to preview a specific strategy without
+    running the full recommendation engine.
+    """
+    suggest_request = SuggestRequest(
+        failure_id=request.failure_id,
+        strategy_override=request.strategy,
+    )
+    return await suggest_fix(suggest_request, client)
 
 
 @router.get(
