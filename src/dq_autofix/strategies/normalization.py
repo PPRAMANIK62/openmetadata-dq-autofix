@@ -2,8 +2,9 @@
 
 from abc import abstractmethod
 from collections.abc import Callable
-from typing import Any, ClassVar
+from typing import ClassVar
 
+from dq_autofix.preview import DiffGenerator
 from dq_autofix.strategies.base import (
     CaseType,
     ConfidenceResult,
@@ -98,30 +99,20 @@ class BaseNormalizationStrategy(FixStrategy):
     def preview(self, context: FailureContext) -> PreviewResult:
         """Generate preview of normalization."""
         column = context.column_name
+        assert column is not None
 
-        before_sample: list[dict[str, Any]] = []
-        after_sample: list[dict[str, Any]] = []
+        diff = DiffGenerator.build_sample_diff(
+            context,
+            column=column,
+            should_include=lambda v: isinstance(v, str) and self._should_transform(v),
+            transform=self._transform_value,
+        )
 
-        if context.sample_data and column:
-            for row_dict in context.sample_data.to_dicts():
-                value = row_dict.get(column)
-                if isinstance(value, str) and self._should_transform(value):
-                    before_sample.append(row_dict.copy())
-                    after_row = row_dict.copy()
-                    after_row[column] = self._transform_value(value)
-                    after_sample.append(after_row)
-                    if len(before_sample) >= 5:
-                        break
-
-        affected = len(before_sample)
-        total = context.table_row_count
-
-        return PreviewResult(
-            before_sample=before_sample,
-            after_sample=after_sample,
-            changes_summary=self._get_change_description(affected),
-            affected_rows=affected,
-            total_rows=total,
+        return DiffGenerator.build_preview_result(
+            diff,
+            changes_summary=self._get_change_description(len(diff.before)),
+            affected_rows=len(diff.before),
+            total_rows=context.table_row_count,
         )
 
 

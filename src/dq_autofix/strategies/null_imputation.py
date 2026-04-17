@@ -3,6 +3,7 @@
 from abc import abstractmethod
 from typing import Any, ClassVar
 
+from dq_autofix.preview import DiffGenerator
 from dq_autofix.strategies.base import (
     ConfidenceResult,
     FailureContext,
@@ -80,30 +81,23 @@ WHERE {self._quote_identifier(column)} IS NULL;"""
         """Generate preview of imputation."""
         value = self._get_imputation_value(context)
         column = context.column_name
+        assert column is not None
 
-        before_sample: list[dict[str, Any]] = []
-        after_sample: list[dict[str, Any]] = []
-
-        if context.sample_data and column:
-            for row_dict in context.sample_data.to_dicts():
-                if row_dict.get(column) is None:
-                    before_sample.append(row_dict.copy())
-                    after_row = row_dict.copy()
-                    after_row[column] = value
-                    after_sample.append(after_row)
-                    if len(before_sample) >= 5:
-                        break
+        diff = DiffGenerator.build_sample_diff(
+            context,
+            column=column,
+            should_include=lambda v: v is None,
+            transform=lambda _: value,
+        )
 
         affected = context.failed_rows or 0
-        total = context.table_row_count
         value_desc = self._get_value_description(value)
 
-        return PreviewResult(
-            before_sample=before_sample,
-            after_sample=after_sample,
+        return DiffGenerator.build_preview_result(
+            diff,
             changes_summary=f"Replace {affected} NULL values with {value_desc}",
             affected_rows=affected,
-            total_rows=total,
+            total_rows=context.table_row_count,
         )
 
 
@@ -258,29 +252,22 @@ class ModeImputationStrategy(BaseNullImputationStrategy):
         """Override to include frequency in summary."""
         mode_value, mode_freq = self._calculate_mode(context)
         column = context.column_name
+        assert column is not None
 
-        before_sample: list[dict[str, Any]] = []
-        after_sample: list[dict[str, Any]] = []
-
-        if context.sample_data and column:
-            for row_dict in context.sample_data.to_dicts():
-                if row_dict.get(column) is None:
-                    before_sample.append(row_dict.copy())
-                    after_row = row_dict.copy()
-                    after_row[column] = mode_value
-                    after_sample.append(after_row)
-                    if len(before_sample) >= 5:
-                        break
+        diff = DiffGenerator.build_sample_diff(
+            context,
+            column=column,
+            should_include=lambda v: v is None,
+            transform=lambda _: mode_value,
+        )
 
         affected = context.failed_rows or 0
-        total = context.table_row_count
 
-        return PreviewResult(
-            before_sample=before_sample,
-            after_sample=after_sample,
+        return DiffGenerator.build_preview_result(
+            diff,
             changes_summary=f"Replace {affected} NULL values with mode '{mode_value}' ({mode_freq * 100:.1f}% frequency)",
             affected_rows=affected,
-            total_rows=total,
+            total_rows=context.table_row_count,
         )
 
     def calculate_confidence(self, context: FailureContext) -> ConfidenceResult:
