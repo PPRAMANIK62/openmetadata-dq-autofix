@@ -47,7 +47,7 @@ docker-start: ## Start stopped containers
 	docker compose start
 
 docker-logs: ## View OpenMetadata server logs
-	docker compose logs -f openmetadata_server
+	docker compose logs -f openmetadata-server
 
 docker-ps: ## Show running containers
 	docker compose ps

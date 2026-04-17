@@ -9,7 +9,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-version: "3.9"
 volumes:
   ingestion-volume-dag-airflow:
   ingestion-volume-dags:
@@ -530,4 +529,4 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: "172.16.240.0/24"
+        - subnet: "172.28.0.0/16"
