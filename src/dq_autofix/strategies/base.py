@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, ClassVar
 
 from dq_autofix.openmetadata.models import ColumnProfile, SampleData, TestCaseResult
 
@@ -202,10 +202,10 @@ class FixStrategy(ABC):
     per method call.
     """
 
-    name: str
-    description: str
-    supported_test_types: list[str]
-    reversibility_score: float = 0.5
+    name: ClassVar[str]
+    description: ClassVar[str]
+    supported_test_types: ClassVar[list[str]]
+    reversibility_score: ClassVar[float] = 0.5
 
     @abstractmethod
     def can_apply(self, context: FailureContext) -> bool:
