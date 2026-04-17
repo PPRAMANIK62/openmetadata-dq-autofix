@@ -91,3 +91,88 @@ class PreviewRequest(BaseModel):
 
     failure_id: str = Field(serialization_alias="failureId")
     strategy: str
+
+
+class PatternResponse(BaseModel):
+    """Detected pattern in API response."""
+
+    pattern_type: str = Field(serialization_alias="patternType")
+    confidence: float
+    affected_count: int = Field(serialization_alias="affectedCount")
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConfidenceBreakdownResponse(BaseModel):
+    """Confidence score breakdown in API response."""
+
+    data_coverage: float = Field(serialization_alias="dataCoverage")
+    pattern_clarity: float = Field(serialization_alias="patternClarity")
+    reversibility: float
+    impact_scope: float = Field(serialization_alias="impactScope")
+    type_match: float = Field(serialization_alias="typeMatch")
+    pattern_boost: float | None = Field(default=None, serialization_alias="patternBoost")
+
+
+class StrategyRecommendationResponse(BaseModel):
+    """Strategy recommendation in API response."""
+
+    name: str
+    description: str
+    confidence_score: float = Field(serialization_alias="confidenceScore")
+    confidence_breakdown: dict[str, float] = Field(serialization_alias="confidenceBreakdown")
+    reason: str = ""
+
+
+class PreviewDataResponse(BaseModel):
+    """Preview data showing before/after samples."""
+
+    before_sample: list[dict[str, Any]] = Field(serialization_alias="beforeSample")
+    after_sample: list[dict[str, Any]] = Field(serialization_alias="afterSample")
+    changes_summary: str = Field(serialization_alias="changesSummary")
+    affected_rows: int = Field(serialization_alias="affectedRows")
+    total_rows: int | None = Field(default=None, serialization_alias="totalRows")
+    affected_percentage: float | None = Field(
+        default=None, serialization_alias="affectedPercentage"
+    )
+
+
+class AnalysisMetadataResponse(BaseModel):
+    """Analysis metadata in API response."""
+
+    test_type: str = Field(serialization_alias="testType")
+    table_fqn: str = Field(serialization_alias="tableFqn")
+    column_name: str | None = Field(default=None, serialization_alias="columnName")
+    failed_rows: int | None = Field(default=None, serialization_alias="failedRows")
+    failed_percentage: float | None = Field(default=None, serialization_alias="failedPercentage")
+    pattern_clarity: float = Field(serialization_alias="patternClarity")
+    strategies_evaluated: int = Field(serialization_alias="strategiesEvaluated")
+    strategies_recommended: int = Field(serialization_alias="strategiesRecommended")
+    analysis_duration_ms: float = Field(serialization_alias="analysisDurationMs")
+    fetch_errors: list[str] = Field(default_factory=list, serialization_alias="fetchErrors")
+
+
+class AnalyzeResponse(BaseModel):
+    """Response from analyze endpoint."""
+
+    test_case_id: str = Field(serialization_alias="testCaseId")
+    test_case_name: str = Field(serialization_alias="testCaseName")
+    patterns: list[PatternResponse] = Field(default_factory=list)
+    recommendations: list[StrategyRecommendationResponse] = Field(default_factory=list)
+    best_strategy: StrategyRecommendationResponse | None = Field(
+        default=None, serialization_alias="bestStrategy"
+    )
+    metadata: AnalysisMetadataResponse
+
+
+class SuggestResponse(BaseModel):
+    """Response from suggest endpoint."""
+
+    failure_id: str = Field(serialization_alias="failureId")
+    strategy: str
+    strategy_description: str = Field(serialization_alias="strategyDescription")
+    confidence_score: float = Field(serialization_alias="confidenceScore")
+    confidence_breakdown: dict[str, float] = Field(serialization_alias="confidenceBreakdown")
+    preview: PreviewDataResponse
+    fix_sql: str = Field(serialization_alias="fixSql")
+    rollback_sql: str | None = Field(default=None, serialization_alias="rollbackSql")
+    patterns: list[PatternResponse] = Field(default_factory=list)

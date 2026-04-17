@@ -204,7 +204,8 @@ class OpenMetadataClient:
             if response.status_code == 404:
                 return []
             response.raise_for_status()
-            return response.json().get("data", [])
+            data: list[dict[str, Any]] = response.json().get("data", [])
+            return data
 
         except httpx.HTTPError as e:
             raise OpenMetadataClientError(
