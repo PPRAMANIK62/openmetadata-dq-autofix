@@ -1,0 +1,64 @@
+{
+  "tab_size": 4,
+  "formatter": "language_server",
+  "format_on_save": "on",
+  "languages": {
+    "Python": {
+      "tab_size": 4,
+      "formatter": {
+        "external": {
+          "command": "ruff",
+          "arguments": ["format", "--stdin-filename", "{buffer_path}", "-"]
+        }
+      },
+      "format_on_save": "on",
+      "language_servers": ["pyright", "ruff"]
+    },
+    "JSON": {
+      "tab_size": 2,
+      "format_on_save": "on"
+    },
+    "YAML": {
+      "tab_size": 2,
+      "format_on_save": "on"
+    },
+    "TOML": {
+      "tab_size": 2,
+      "format_on_save": "on"
+    },
+    "Markdown": {
+      "format_on_save": "off",
+      "soft_wrap": "preferred_line_length",
+      "preferred_line_length": 100
+    }
+  },
+  "lsp": {
+    "ruff": {
+      "initialization_options": {
+        "settings": {
+          "lineLength": 100,
+          "lint": {
+            "select": ["E", "F", "I", "UP", "B", "SIM"],
+            "ignore": ["E501"]
+          }
+        }
+      }
+    },
+    "pyright": {
+      "settings": {
+        "python": {
+          "pythonPath": ".venv/bin/python"
+        },
+        "pyright": {
+          "typeCheckingMode": "basic"
+        }
+      }
+    }
+  },
+  "file_types": {
+    "Python": ["py", "pyi"]
+  },
+  "git": {
+    "git_gutter": "tracked_files"
+  }
+}
