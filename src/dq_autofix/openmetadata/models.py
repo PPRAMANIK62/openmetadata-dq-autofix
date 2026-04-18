@@ -54,12 +54,15 @@ class TestCaseResult(BaseModel):
 
     id: str
     name: str
+    fully_qualified_name: str | None = Field(default=None, alias="fullyQualifiedName")
     display_name: str | None = Field(default=None, alias="displayName")
     description: str | None = None
-    test_definition: str = Field(alias="testDefinition")
+    test_definition: str | None = Field(default=None, alias="testDefinition")
     entity_link: str = Field(alias="entityLink")
+    entity_fqn: str | None = Field(default=None, alias="entityFQN")
     test_suite: str | None = Field(default=None, alias="testSuite")
     parameter_values: list[dict[str, Any]] | None = Field(default=None, alias="parameterValues")
+    test_case_status: TestResultStatus | None = Field(default=None, alias="testCaseStatus")
     result: TestCaseResultSummary | None = None
 
     model_config = {"populate_by_name": True}

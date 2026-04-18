@@ -75,22 +75,28 @@ class ErrorResponse(BaseModel):
 class AnalyzeRequest(BaseModel):
     """Request to analyze a test case or table."""
 
-    test_case_id: str | None = Field(default=None, serialization_alias="testCaseId")
-    table_fqn: str | None = Field(default=None, serialization_alias="tableFqn")
+    test_case_id: str | None = Field(default=None, alias="testCaseId")
+    table_fqn: str | None = Field(default=None, alias="tableFqn")
+
+    model_config = {"populate_by_name": True}
 
 
 class SuggestRequest(BaseModel):
     """Request to suggest a fix for a failure."""
 
-    failure_id: str = Field(serialization_alias="failureId")
-    strategy_override: str | None = Field(default=None, serialization_alias="strategyOverride")
+    failure_id: str = Field(alias="failureId")
+    strategy_override: str | None = Field(default=None, alias="strategyOverride")
+
+    model_config = {"populate_by_name": True}
 
 
 class PreviewRequest(BaseModel):
     """Request to preview a fix."""
 
-    failure_id: str = Field(serialization_alias="failureId")
+    failure_id: str = Field(alias="failureId")
     strategy: str
+
+    model_config = {"populate_by_name": True}
 
 
 class PatternResponse(BaseModel):

@@ -69,6 +69,20 @@ class OpenMetadataClient:
             results = []
             for item in data.get("data", []):
                 try:
+                    # Extract test definition from name if not present
+                    if "testDefinition" not in item and "name" in item:
+                        name = item["name"]
+                        # Extract test type from name pattern like "column_values_to_be_not_null"
+                        if "column_values_to_be_not_null" in name.lower():
+                            item["testDefinition"] = "columnValuesToNotBeNull"
+                        elif "column_values_to_be_unique" in name.lower():
+                            item["testDefinition"] = "columnValuesToBeUnique"
+                        elif "column_values_to_match_regex" in name.lower():
+                            item["testDefinition"] = "columnValuesToMatchRegex"
+                        elif "column_values_to_be_in_set" in name.lower():
+                            item["testDefinition"] = "columnValuesToBeInSet"
+                        else:
+                            item["testDefinition"] = "unknown"
                     results.append(TestCaseResult.model_validate(item))
                 except Exception as e:
                     logger.warning(f"Failed to parse test case: {e}")
@@ -79,25 +93,47 @@ class OpenMetadataClient:
             raise OpenMetadataClientError(f"Failed to fetch test cases: {e}") from e
 
     async def get_test_case_result(self, test_case_id: str) -> TestCaseResult | None:
-        """Get a specific test case result by ID.
+        """Get a specific test case result by ID, name, or FQN.
 
         Args:
-            test_case_id: The test case identifier (can be ID or FQN).
+            test_case_id: The test case identifier (UUID, name, or FQN).
 
         Returns:
             Test case result or None if not found.
         """
         client = await self._get_http_client()
 
+        # First try to find by searching all test cases (handles name matching)
         try:
             response = await client.get(
-                f"/api/v1/dataQuality/testCases/name/{test_case_id}",
-                params={"fields": "testDefinition,testSuite"},
+                "/api/v1/dataQuality/testCases",
+                params={"limit": 200},
             )
-            if response.status_code == 404:
-                return None
             response.raise_for_status()
-            return TestCaseResult.model_validate(response.json())
+            data = response.json()
+
+            for item in data.get("data", []):
+                # Match by ID, name, or FQN
+                if (item.get("id") == test_case_id or 
+                    item.get("name") == test_case_id or
+                    item.get("fullyQualifiedName") == test_case_id or
+                    item.get("name", "").lower() == test_case_id.lower()):
+                    # Extract test definition from name if not present
+                    if "testDefinition" not in item and "name" in item:
+                        name = item["name"]
+                        if "column_values_to_be_not_null" in name.lower():
+                            item["testDefinition"] = "columnValuesToNotBeNull"
+                        elif "column_values_to_be_unique" in name.lower():
+                            item["testDefinition"] = "columnValuesToBeUnique"
+                        elif "column_values_to_match_regex" in name.lower():
+                            item["testDefinition"] = "columnValuesToMatchRegex"
+                        elif "column_values_to_be_in_set" in name.lower():
+                            item["testDefinition"] = "columnValuesToBeInSet"
+                        else:
+                            item["testDefinition"] = "unknown"
+                    return TestCaseResult.model_validate(item)
+
+            return None
 
         except httpx.HTTPError as e:
             raise OpenMetadataClientError(f"Failed to fetch test case {test_case_id}: {e}") from e
@@ -118,13 +154,16 @@ class OpenMetadataClient:
                 f"/api/v1/dataQuality/testCases/{test_case_id}",
                 params={"fields": "testDefinition,testSuite"},
             )
-            if response.status_code == 404:
+            # OpenMetadata returns 500 for not found test cases (bug), handle gracefully
+            if response.status_code in (404, 500):
                 return None
             response.raise_for_status()
             return TestCaseResult.model_validate(response.json())
 
         except httpx.HTTPError as e:
-            raise OpenMetadataClientError(f"Failed to fetch test case {test_case_id}: {e}") from e
+            # Treat HTTP errors as not found for this lookup
+            logger.warning(f"HTTP error looking up test case {test_case_id}: {e}")
+            return None
 
     async def get_table_sample_data(self, table_fqn: str, limit: int = 100) -> SampleData | None:
         """Get sample data rows from a table.
@@ -139,17 +178,35 @@ class OpenMetadataClient:
         client = await self._get_http_client()
 
         try:
+            # First get the table ID
             encoded_fqn = table_fqn.replace("/", "%2F")
-            response = await client.get(
-                f"/api/v1/tables/name/{encoded_fqn}/sampleData",
-                params={"limit": limit},
-            )
+            table_response = await client.get(f"/api/v1/tables/name/{encoded_fqn}")
+            if table_response.status_code == 404:
+                return None
+            table_response.raise_for_status()
+            table_data = table_response.json()
+            table_id = table_data.get("id")
+            
+            if not table_id:
+                return None
+            
+            # Use table ID to get sample data
+            response = await client.get(f"/api/v1/tables/{table_id}/sampleData")
             if response.status_code == 404:
                 return None
             response.raise_for_status()
             data = response.json()
-            data["tableFqn"] = table_fqn
-            return SampleData.model_validate(data)
+            
+            # Extract sampleData from response if nested
+            if "sampleData" in data:
+                sample = data["sampleData"]
+                sample["tableFqn"] = table_fqn
+                return SampleData.model_validate(sample)
+            elif "columns" in data and "rows" in data:
+                data["tableFqn"] = table_fqn
+                return SampleData.model_validate(data)
+            
+            return None
 
         except httpx.HTTPError as e:
             raise OpenMetadataClientError(
