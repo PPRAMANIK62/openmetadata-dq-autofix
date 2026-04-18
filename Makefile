@@ -7,7 +7,9 @@ help: ## Show this help message
 install: ## Install dependencies
 	uv sync
 
-dev: ## Run development server with auto-reload
+dev: ## Run the app with UI
+	@echo "Starting DQ AutoFix at http://localhost:8000"
+	@echo "Press Ctrl+C to stop"
 	uv run uvicorn dq_autofix.main:app --reload
 
 run: ## Run production server

@@ -114,10 +114,12 @@ class OpenMetadataClient:
 
             for item in data.get("data", []):
                 # Match by ID, name, or FQN
-                if (item.get("id") == test_case_id or 
-                    item.get("name") == test_case_id or
-                    item.get("fullyQualifiedName") == test_case_id or
-                    item.get("name", "").lower() == test_case_id.lower()):
+                if (
+                    item.get("id") == test_case_id
+                    or item.get("name") == test_case_id
+                    or item.get("fullyQualifiedName") == test_case_id
+                    or item.get("name", "").lower() == test_case_id.lower()
+                ):
                     # Extract test definition from name if not present
                     if "testDefinition" not in item and "name" in item:
                         name = item["name"]
@@ -186,17 +188,17 @@ class OpenMetadataClient:
             table_response.raise_for_status()
             table_data = table_response.json()
             table_id = table_data.get("id")
-            
+
             if not table_id:
                 return None
-            
+
             # Use table ID to get sample data
             response = await client.get(f"/api/v1/tables/{table_id}/sampleData")
             if response.status_code == 404:
                 return None
             response.raise_for_status()
             data = response.json()
-            
+
             # Extract sampleData from response if nested
             if "sampleData" in data:
                 sample = data["sampleData"]
@@ -205,7 +207,7 @@ class OpenMetadataClient:
             elif "columns" in data and "rows" in data:
                 data["tableFqn"] = table_fqn
                 return SampleData.model_validate(data)
-            
+
             return None
 
         except httpx.HTTPError as e:

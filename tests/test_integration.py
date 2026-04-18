@@ -20,6 +20,7 @@ from dq_autofix.openmetadata.client import OpenMetadataClient
 def has_openmetadata_connection() -> bool:
     """Check if OpenMetadata is accessible."""
     import httpx
+
     settings = Settings()
     if not settings.openmetadata_token:
         return False
@@ -27,7 +28,7 @@ def has_openmetadata_connection() -> bool:
         with httpx.Client(timeout=5.0) as client:
             response = client.get(
                 f"{settings.openmetadata_host}/api/v1/system/version",
-                headers={"Authorization": f"Bearer {settings.openmetadata_token}"}
+                headers={"Authorization": f"Bearer {settings.openmetadata_token}"},
             )
             return response.status_code == 200
     except Exception:
@@ -35,8 +36,7 @@ def has_openmetadata_connection() -> bool:
 
 
 requires_openmetadata = pytest.mark.skipif(
-    not has_openmetadata_connection(),
-    reason="OpenMetadata not accessible or token not configured"
+    not has_openmetadata_connection(), reason="OpenMetadata not accessible or token not configured"
 )
 
 
@@ -69,6 +69,7 @@ def om_client(settings):
 # API Health Tests
 # =============================================================================
 
+
 class TestAPIHealth:
     """Test API health endpoints."""
 
@@ -93,6 +94,7 @@ class TestAPIHealth:
 # Failures Endpoint Tests
 # =============================================================================
 
+
 @requires_openmetadata
 class TestFailuresEndpoint:
     """Test failures listing from OpenMetadata."""
@@ -111,7 +113,7 @@ class TestFailuresEndpoint:
         response = client.get("/api/v1/failures")
         assert response.status_code == 200
         data = response.json()
-        
+
         if data["total"] > 0:
             failure = data["data"][0]
             assert "id" in failure
@@ -124,6 +126,7 @@ class TestFailuresEndpoint:
 # Analyze Endpoint Tests
 # =============================================================================
 
+
 @requires_openmetadata
 class TestAnalyzeEndpoint:
     """Test analysis of DQ failures."""
@@ -133,18 +136,12 @@ class TestAnalyzeEndpoint:
         # First get a failure
         failures_response = client.get("/api/v1/failures")
         failures = failures_response.json()["data"]
-        
+
         # Find a not-null failure
-        not_null_failure = next(
-            (f for f in failures if "not_null" in f["name"].lower()),
-            None
-        )
-        
+        not_null_failure = next((f for f in failures if "not_null" in f["name"].lower()), None)
+
         if not_null_failure:
-            response = client.post(
-                "/api/v1/analyze",
-                json={"testCaseId": not_null_failure["name"]}
-            )
+            response = client.post("/api/v1/analyze", json={"testCaseId": not_null_failure["name"]})
             assert response.status_code == 200
             data = response.json()
             assert "testCaseId" in data
@@ -157,17 +154,11 @@ class TestAnalyzeEndpoint:
         """Test analyzing a columnValuesToBeUnique failure."""
         failures_response = client.get("/api/v1/failures")
         failures = failures_response.json()["data"]
-        
-        unique_failure = next(
-            (f for f in failures if "unique" in f["name"].lower()),
-            None
-        )
-        
+
+        unique_failure = next((f for f in failures if "unique" in f["name"].lower()), None)
+
         if unique_failure:
-            response = client.post(
-                "/api/v1/analyze",
-                json={"testCaseId": unique_failure["name"]}
-            )
+            response = client.post("/api/v1/analyze", json={"testCaseId": unique_failure["name"]})
             assert response.status_code == 200
             data = response.json()
             assert data["metadata"]["testType"] == "columnValuesToBeUnique"
@@ -176,17 +167,11 @@ class TestAnalyzeEndpoint:
         """Test analyzing a columnValuesToMatchRegex failure."""
         failures_response = client.get("/api/v1/failures")
         failures = failures_response.json()["data"]
-        
-        regex_failure = next(
-            (f for f in failures if "regex" in f["name"].lower()),
-            None
-        )
-        
+
+        regex_failure = next((f for f in failures if "regex" in f["name"].lower()), None)
+
         if regex_failure:
-            response = client.post(
-                "/api/v1/analyze",
-                json={"testCaseId": regex_failure["name"]}
-            )
+            response = client.post("/api/v1/analyze", json={"testCaseId": regex_failure["name"]})
             assert response.status_code == 200
             data = response.json()
             assert data["metadata"]["testType"] == "columnValuesToMatchRegex"
@@ -194,8 +179,7 @@ class TestAnalyzeEndpoint:
     def test_analyze_nonexistent_failure(self, client):
         """Test analyzing a non-existent test case."""
         response = client.post(
-            "/api/v1/analyze",
-            json={"testCaseId": "nonexistent_test_case_xyz123"}
+            "/api/v1/analyze", json={"testCaseId": "nonexistent_test_case_xyz123"}
         )
         assert response.status_code == 404
 
@@ -209,6 +193,7 @@ class TestAnalyzeEndpoint:
 # Suggest Endpoint Tests
 # =============================================================================
 
+
 @requires_openmetadata
 class TestSuggestEndpoint:
     """Test fix suggestions."""
@@ -217,12 +202,9 @@ class TestSuggestEndpoint:
         """Test that suggest returns fix SQL."""
         failures_response = client.get("/api/v1/failures")
         failures = failures_response.json()["data"]
-        
+
         if failures:
-            response = client.post(
-                "/api/v1/suggest",
-                json={"failureId": failures[0]["name"]}
-            )
+            response = client.post("/api/v1/suggest", json={"failureId": failures[0]["name"]})
             # May return 404 if no strategy applies, or 200 with suggestion
             if response.status_code == 200:
                 data = response.json()
@@ -235,20 +217,14 @@ class TestSuggestEndpoint:
         """Test suggest with explicit strategy override."""
         failures_response = client.get("/api/v1/failures")
         failures = failures_response.json()["data"]
-        
+
         # Find a unique failure for keep_first strategy
-        unique_failure = next(
-            (f for f in failures if "unique" in f["name"].lower()),
-            None
-        )
-        
+        unique_failure = next((f for f in failures if "unique" in f["name"].lower()), None)
+
         if unique_failure:
             response = client.post(
                 "/api/v1/suggest",
-                json={
-                    "failureId": unique_failure["name"],
-                    "strategyOverride": "keep_first"
-                }
+                json={"failureId": unique_failure["name"], "strategyOverride": "keep_first"},
             )
             assert response.status_code == 200
             data = response.json()
@@ -259,19 +235,13 @@ class TestSuggestEndpoint:
         """Test trim_whitespace strategy."""
         failures_response = client.get("/api/v1/failures")
         failures = failures_response.json()["data"]
-        
-        regex_failure = next(
-            (f for f in failures if "regex" in f["name"].lower()),
-            None
-        )
-        
+
+        regex_failure = next((f for f in failures if "regex" in f["name"].lower()), None)
+
         if regex_failure:
             response = client.post(
                 "/api/v1/suggest",
-                json={
-                    "failureId": regex_failure["name"],
-                    "strategyOverride": "trim_whitespace"
-                }
+                json={"failureId": regex_failure["name"], "strategyOverride": "trim_whitespace"},
             )
             assert response.status_code == 200
             data = response.json()
@@ -282,14 +252,11 @@ class TestSuggestEndpoint:
         """Test suggest with invalid strategy."""
         failures_response = client.get("/api/v1/failures")
         failures = failures_response.json()["data"]
-        
+
         if failures:
             response = client.post(
                 "/api/v1/suggest",
-                json={
-                    "failureId": failures[0]["name"],
-                    "strategyOverride": "invalid_strategy_xyz"
-                }
+                json={"failureId": failures[0]["name"], "strategyOverride": "invalid_strategy_xyz"},
             )
             assert response.status_code == 404
 
@@ -297,6 +264,7 @@ class TestSuggestEndpoint:
 # =============================================================================
 # Preview Endpoint Tests
 # =============================================================================
+
 
 @requires_openmetadata
 class TestPreviewEndpoint:
@@ -306,19 +274,13 @@ class TestPreviewEndpoint:
         """Test that preview shows before/after samples."""
         failures_response = client.get("/api/v1/failures")
         failures = failures_response.json()["data"]
-        
-        regex_failure = next(
-            (f for f in failures if "regex" in f["name"].lower()),
-            None
-        )
-        
+
+        regex_failure = next((f for f in failures if "regex" in f["name"].lower()), None)
+
         if regex_failure:
             response = client.post(
                 "/api/v1/preview",
-                json={
-                    "failureId": regex_failure["name"],
-                    "strategy": "trim_whitespace"
-                }
+                json={"failureId": regex_failure["name"], "strategy": "trim_whitespace"},
             )
             assert response.status_code == 200
             data = response.json()
@@ -332,6 +294,7 @@ class TestPreviewEndpoint:
 # =============================================================================
 # Strategies Endpoint Tests
 # =============================================================================
+
 
 class TestStrategiesEndpoint:
     """Test strategies listing."""
@@ -349,7 +312,7 @@ class TestStrategiesEndpoint:
         """Test that strategies have all required fields."""
         response = client.get("/api/v1/strategies")
         data = response.json()
-        
+
         for strategy in data["data"]:
             assert "name" in strategy
             assert "description" in strategy
@@ -360,11 +323,11 @@ class TestStrategiesEndpoint:
         """Test that all expected strategies are registered."""
         response = client.get("/api/v1/strategies")
         data = response.json()
-        
+
         strategy_names = {s["name"] for s in data["data"]}
         expected = {
             "mean_imputation",
-            "median_imputation", 
+            "median_imputation",
             "mode_imputation",
             "forward_fill",
             "trim_whitespace",
@@ -378,6 +341,7 @@ class TestStrategiesEndpoint:
 # =============================================================================
 # OpenMetadata Client Tests
 # =============================================================================
+
 
 @requires_openmetadata
 class TestOpenMetadataClient:
@@ -408,9 +372,7 @@ class TestOpenMetadataClient:
     async def test_get_sample_data(self, om_client):
         """Test fetching sample data."""
         try:
-            sample = await om_client.get_table_sample_data(
-                "test_mysql.default.test_dq.customers"
-            )
+            sample = await om_client.get_table_sample_data("test_mysql.default.test_dq.customers")
             if sample:
                 assert sample.columns is not None
                 assert sample.rows is not None
@@ -423,6 +385,7 @@ class TestOpenMetadataClient:
 # End-to-End Flow Tests
 # =============================================================================
 
+
 @requires_openmetadata
 class TestEndToEndFlow:
     """Test complete end-to-end workflows."""
@@ -433,27 +396,22 @@ class TestEndToEndFlow:
         failures_response = client.get("/api/v1/failures")
         assert failures_response.status_code == 200
         failures = failures_response.json()["data"]
-        
-        not_null_failure = next(
-            (f for f in failures if "not_null" in f["name"].lower()),
-            None
-        )
+
+        not_null_failure = next((f for f in failures if "not_null" in f["name"].lower()), None)
         if not not_null_failure:
             pytest.skip("No not-null failure found")
-        
+
         # Step 2: Analyze
         analyze_response = client.post(
-            "/api/v1/analyze",
-            json={"testCaseId": not_null_failure["name"]}
+            "/api/v1/analyze", json={"testCaseId": not_null_failure["name"]}
         )
         assert analyze_response.status_code == 200
         analysis = analyze_response.json()
         assert analysis["metadata"]["testType"] == "columnValuesToNotBeNull"
-        
+
         # Step 3: Suggest
         suggest_response = client.post(
-            "/api/v1/suggest",
-            json={"failureId": not_null_failure["name"]}
+            "/api/v1/suggest", json={"failureId": not_null_failure["name"]}
         )
         if suggest_response.status_code == 200:
             suggestion = suggest_response.json()
@@ -464,28 +422,21 @@ class TestEndToEndFlow:
         """Test full flow for duplicate/uniqueness check."""
         failures_response = client.get("/api/v1/failures")
         failures = failures_response.json()["data"]
-        
-        unique_failure = next(
-            (f for f in failures if "unique" in f["name"].lower()),
-            None
-        )
+
+        unique_failure = next((f for f in failures if "unique" in f["name"].lower()), None)
         if not unique_failure:
             pytest.skip("No unique failure found")
-        
+
         # Analyze
         analyze_response = client.post(
-            "/api/v1/analyze",
-            json={"testCaseId": unique_failure["name"]}
+            "/api/v1/analyze", json={"testCaseId": unique_failure["name"]}
         )
         assert analyze_response.status_code == 200
-        
+
         # Suggest with keep_first
         suggest_response = client.post(
             "/api/v1/suggest",
-            json={
-                "failureId": unique_failure["name"],
-                "strategyOverride": "keep_first"
-            }
+            json={"failureId": unique_failure["name"], "strategyOverride": "keep_first"},
         )
         assert suggest_response.status_code == 200
         suggestion = suggest_response.json()
@@ -496,33 +447,26 @@ class TestEndToEndFlow:
         """Test full flow for whitespace/regex check."""
         failures_response = client.get("/api/v1/failures")
         failures = failures_response.json()["data"]
-        
-        regex_failure = next(
-            (f for f in failures if "regex" in f["name"].lower()),
-            None
-        )
+
+        regex_failure = next((f for f in failures if "regex" in f["name"].lower()), None)
         if not regex_failure:
             pytest.skip("No regex failure found")
-        
+
         # Analyze
         analyze_response = client.post(
-            "/api/v1/analyze",
-            json={"testCaseId": regex_failure["name"]}
+            "/api/v1/analyze", json={"testCaseId": regex_failure["name"]}
         )
         assert analyze_response.status_code == 200
         analysis = analyze_response.json()
-        
+
         # Should recommend trim_whitespace with high confidence
         if analysis["recommendations"]:
             best = analysis["bestStrategy"]
             if best:
                 assert best["confidenceScore"] > 0.5
-        
+
         # Suggest
-        suggest_response = client.post(
-            "/api/v1/suggest",
-            json={"failureId": regex_failure["name"]}
-        )
+        suggest_response = client.post("/api/v1/suggest", json={"failureId": regex_failure["name"]})
         if suggest_response.status_code == 200:
             suggestion = suggest_response.json()
             assert "TRIM" in suggestion["fixSql"]
@@ -534,6 +478,7 @@ class TestEndToEndFlow:
 # SQL Generation Tests
 # =============================================================================
 
+
 @requires_openmetadata
 class TestSQLGeneration:
     """Test SQL generation for different strategies."""
@@ -541,18 +486,12 @@ class TestSQLGeneration:
     def test_trim_whitespace_sql(self, client):
         """Test trim_whitespace generates valid SQL."""
         failures = client.get("/api/v1/failures").json()["data"]
-        regex_failure = next(
-            (f for f in failures if "regex" in f["name"].lower()),
-            None
-        )
-        
+        regex_failure = next((f for f in failures if "regex" in f["name"].lower()), None)
+
         if regex_failure:
             response = client.post(
                 "/api/v1/suggest",
-                json={
-                    "failureId": regex_failure["name"],
-                    "strategyOverride": "trim_whitespace"
-                }
+                json={"failureId": regex_failure["name"], "strategyOverride": "trim_whitespace"},
             )
             if response.status_code == 200:
                 sql = response.json()["fixSql"]
@@ -563,18 +502,12 @@ class TestSQLGeneration:
     def test_keep_first_sql(self, client):
         """Test keep_first generates valid DELETE SQL."""
         failures = client.get("/api/v1/failures").json()["data"]
-        unique_failure = next(
-            (f for f in failures if "unique" in f["name"].lower()),
-            None
-        )
-        
+        unique_failure = next((f for f in failures if "unique" in f["name"].lower()), None)
+
         if unique_failure:
             response = client.post(
                 "/api/v1/suggest",
-                json={
-                    "failureId": unique_failure["name"],
-                    "strategyOverride": "keep_first"
-                }
+                json={"failureId": unique_failure["name"], "strategyOverride": "keep_first"},
             )
             if response.status_code == 200:
                 sql = response.json()["fixSql"]
@@ -584,12 +517,9 @@ class TestSQLGeneration:
     def test_rollback_sql_exists(self, client):
         """Test that rollback SQL is always generated."""
         failures = client.get("/api/v1/failures").json()["data"]
-        
+
         for failure in failures[:3]:  # Test first 3
-            response = client.post(
-                "/api/v1/suggest",
-                json={"failureId": failure["name"]}
-            )
+            response = client.post("/api/v1/suggest", json={"failureId": failure["name"]})
             if response.status_code == 200:
                 data = response.json()
                 assert data["rollbackSql"] is not None

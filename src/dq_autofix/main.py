@@ -3,14 +3,19 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from dq_autofix import __version__
 from dq_autofix.api.routes import router as api_router
 from dq_autofix.config import get_settings
 from dq_autofix.openmetadata.client import OpenMetadataClient
+
+STATIC_DIR = Path(__file__).parent.parent.parent / "static"
 
 
 def setup_logging() -> None:
@@ -74,6 +79,14 @@ def create_app() -> FastAPI:
     async def root_health() -> dict[str, str]:
         """Root health check endpoint."""
         return {"status": "healthy"}
+
+    if STATIC_DIR.exists():
+        app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+        @app.get("/", include_in_schema=False)
+        async def serve_frontend() -> FileResponse:
+            """Serve the frontend application."""
+            return FileResponse(STATIC_DIR / "index.html")
 
     return app
 
