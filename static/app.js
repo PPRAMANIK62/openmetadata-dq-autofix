@@ -9,6 +9,8 @@
 const state = {
     failures: [],
     strategies: [],
+    databases: [],
+    selectedDatabase: null,
     selectedFailureId: null,
     suggestion: null,
     suggestionError: null,
@@ -50,8 +52,13 @@ const api = {
         return this.request('/health');
     },
 
-    async getFailures() {
-        return this.request('/failures');
+    async getFailures(database = null) {
+        const params = database ? `?database=${encodeURIComponent(database)}` : '';
+        return this.request(`/failures${params}`);
+    },
+
+    async getDatabases() {
+        return this.request('/databases');
     },
 
     async getStrategies() {
@@ -114,6 +121,46 @@ function renderConnectionStatus(connected, version) {
     statusEl.querySelector('.status-text').textContent = connected 
         ? `CONNECTED v${version}` 
         : 'DISCONNECTED';
+}
+
+function renderDatabaseFilter() {
+    const select = $('#database-filter');
+    if (!select) return;
+    
+    // Clear existing options except "All Databases"
+    while (select.options.length > 1) {
+        select.remove(1);
+    }
+    
+    // Add database options
+    state.databases.forEach(db => {
+        const option = document.createElement('option');
+        option.value = db;
+        option.textContent = db;
+        if (db === state.selectedDatabase) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+}
+
+async function onDatabaseFilterChange(e) {
+    const value = e.target.value;
+    state.selectedDatabase = value || null;
+    
+    // Save preference to localStorage
+    if (value) {
+        localStorage.setItem('dq-autofix-database-filter', value);
+    } else {
+        localStorage.removeItem('dq-autofix-database-filter');
+    }
+    
+    // Clear selection and reload failures
+    state.selectedFailureId = null;
+    state.suggestion = null;
+    await loadFailures();
+    renderFailures();
+    renderDiagnosis();
 }
 
 function renderStats() {
@@ -778,22 +825,49 @@ function setupKeyboardNavigation() {
 // INITIALIZATION
 // ============================================
 
-async function loadData() {
+async function loadFailures() {
     state.isLoadingFailures = true;
     renderFailures();
     
     try {
-        // Load failures and strategies in parallel
-        const [failuresResponse, strategiesResponse] = await Promise.all([
-            api.getFailures(),
+        const failuresResponse = await api.getFailures(state.selectedDatabase);
+        state.failures = failuresResponse?.data || failuresResponse || [];
+        state.isLoadingFailures = false;
+        renderStats();
+        renderFailures();
+    } catch (error) {
+        console.error('loadFailures error:', error);
+        state.error = 'Failed to load failures';
+        state.isLoadingFailures = false;
+        renderFailures();
+    }
+}
+
+async function loadData() {
+    state.isLoadingFailures = true;
+    renderFailures();
+    
+    // Restore saved database filter from localStorage
+    const savedDatabase = localStorage.getItem('dq-autofix-database-filter');
+    if (savedDatabase) {
+        state.selectedDatabase = savedDatabase;
+    }
+    
+    try {
+        // Load databases, failures, and strategies in parallel
+        const [databasesResponse, failuresResponse, strategiesResponse] = await Promise.all([
+            api.getDatabases(),
+            api.getFailures(state.selectedDatabase),
             api.getStrategies()
         ]);
         
         // API returns {data: [...], total: N} format
+        state.databases = databasesResponse?.data || databasesResponse || [];
         state.failures = failuresResponse?.data || failuresResponse || [];
         state.strategies = strategiesResponse?.data || strategiesResponse || [];
         state.isLoadingFailures = false;
         
+        renderDatabaseFilter();
         renderStats();
         renderFailures();
     } catch (error) {
@@ -911,6 +985,7 @@ async function init() {
     
     // Setup event listeners
     $('#refresh-btn').addEventListener('click', refresh);
+    $('#database-filter').addEventListener('change', onDatabaseFilterChange);
     setupKeyboardNavigation();
     setupResizer();
     

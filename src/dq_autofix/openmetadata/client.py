@@ -51,8 +51,14 @@ class OpenMetadataClient:
             await self._http_client.aclose()
             self._http_client = None
 
-    async def get_failed_test_cases(self) -> list[TestCaseResult]:
+    async def get_failed_test_cases(
+        self, database_filter: str | None = None
+    ) -> list[TestCaseResult]:
         """Get all failed test cases.
+
+        Args:
+            database_filter: Optional filter to only include test cases from tables
+                            containing this string (e.g., "test_dq" to filter by database).
 
         Returns:
             List of failed test case results.
@@ -73,6 +79,11 @@ class OpenMetadataClient:
 
             results = []
             for item in data.get("data", []):
+                # Filter by database/table if specified
+                if database_filter:
+                    entity_link = item.get("entityLink", "")
+                    if database_filter.lower() not in entity_link.lower():
+                        continue
                 try:
                     # Extract test definition from name if not present
                     if "testDefinition" not in item and "name" in item:

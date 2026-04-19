@@ -46,6 +46,17 @@
                         </svg>
                     </button>
                 </div>
+                <div class="filter-bar">
+                    <label class="filter-label" for="database-filter">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M2 4h12M4 8h8M6 12h4"/>
+                        </svg>
+                        Filter
+                    </label>
+                    <select id="database-filter" class="db-filter" aria-label="Filter by database">
+                        <option value="">All Databases</option>
+                    </select>
+                </div>
                 <div class="failures-list" id="failures-list">
                     <div class="loading-state">Loading failures...</div>
                 </div>

@@ -85,6 +85,39 @@ async def health_check(settings: Settings = Depends(get_settings)) -> HealthResp
 
 
 @router.get(
+    "/databases",
+    tags=["Filters"],
+    summary="List available databases from failed test cases",
+    responses={
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def list_databases(
+    client: OpenMetadataClient = Depends(get_om_client),
+) -> dict[str, object]:
+    """Get list of unique database paths (service.database.schema) that have failed test cases."""
+    try:
+        failures = await client.get_failed_test_cases(database_filter=None)
+        databases: set[str] = set()
+        for f in failures:
+            if f.table_fqn:
+                parts = f.table_fqn.split(".")
+                if len(parts) >= 3:
+                    # Format: service.database.schema.table -> extract service.database.schema
+                    db_path = ".".join(parts[:3])
+                    databases.add(db_path)
+        return {
+            "data": sorted(databases),
+            "total": len(databases),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch databases: {e}",
+        ) from e
+
+
+@router.get(
     "/failures",
     response_model=FailureListResponse,
     tags=["Failures"],
@@ -94,11 +127,16 @@ async def health_check(settings: Settings = Depends(get_settings)) -> HealthResp
     },
 )
 async def list_failures(
+    database: str | None = None,
     client: OpenMetadataClient = Depends(get_om_client),
 ) -> FailureListResponse:
-    """List all failed data quality test cases."""
+    """List all failed data quality test cases.
+
+    Args:
+        database: Optional database path to filter by (e.g., 'test_mysql.default.test_dq').
+    """
     try:
-        failures = await client.get_failed_test_cases()
+        failures = await client.get_failed_test_cases(database_filter=database)
         return FailureListResponse(
             data=[_convert_to_failure_response(f) for f in failures],
             total=len(failures),
