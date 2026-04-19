@@ -2,10 +2,10 @@
 
 > Automated repair suggestions for failed OpenMetadata Data Quality checks
 
-[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.136+-green.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-249%20passing-brightgreen.svg)](#testing)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[Python 3.14+](https://www.python.org/downloads/)
+[FastAPI](https://fastapi.tiangolo.com/)
+[Tests](#testing)
+[License: MIT](LICENSE)
 
 **Hackathon**: WeMakeDevs × OpenMetadata "Back to the Metadata" (Apr 17-26, 2026)  
 **Track**: Paradox #T-02 — Data Observability  
@@ -13,7 +13,7 @@
 
 ## Demo
 
-[![Watch Demo](https://img.youtube.com/vi/rz_JBwoxVCI/maxresdefault.jpg)](https://youtu.be/rz_JBwoxVCI)
+[Watch Demo](https://youtu.be/rz_JBwoxVCI)
 
 > Click the image above to watch the demo video
 
@@ -21,11 +21,11 @@
 
 **Trim Whitespace Strategy** - 94% confidence, removes leading/trailing spaces
 
-![Trim Whitespace](assets/screenshot-trim-whitespace.png)
+Trim Whitespace
 
 **Mode Imputation Strategy** - 81% confidence, replaces NULL with most frequent value
 
-![Mode Imputation](assets/screenshot-mode-imputation.png)
+Mode Imputation
 
 ---
 
