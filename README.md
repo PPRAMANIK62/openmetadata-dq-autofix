@@ -1,18 +1,62 @@
-# OpenMetadata DQ AutoFix
+# DQ AutoFix
 
-AI-powered repair suggestions for failed OpenMetadata Data Quality checks.
+> AI-powered repair suggestions for failed OpenMetadata Data Quality checks
 
-**Hackathon**: WeMakeDevs "Back to the Metadata" (Apr 17-26, 2026)  
-**Track**: Data Observability (Paradox #T-02)
+[Python 3.14+](https://www.python.org/downloads/)
+[FastAPI](https://fastapi.tiangolo.com/)
+[Tests](#testing)
+[License: MIT](LICENSE)
 
-## Overview
+**Hackathon**: WeMakeDevs × OpenMetadata "Back to the Metadata" (Apr 17-26, 2026)  
+**Track**: Paradox #T-02 — Data Observability  
+**Issue**: [#26661 - Propose automated fixes for failed Data Quality checks](https://github.com/open-metadata/OpenMetadata/issues/26661)
 
-DQ AutoFix is a repair-suggester service that:
-- Analyzes failed DQ checks from OpenMetadata
-- Detects data quality patterns (nulls, whitespace, duplicates, case issues)
-- Proposes automated fixes with confidence scores (0-100%)
-- Provides before/after preview with unified diff format
-- Generates copy-paste ready SQL with rollback guards
+---
+
+## The Problem
+
+When a Data Quality test fails in OpenMetadata, you get a notification that something is wrong — but **no guidance on how to fix it**. Engineers must:
+
+1. Manually inspect the failing data
+2. Figure out what went wrong (nulls? duplicates? format issues?)
+3. Write SQL to fix it
+4. Hope they don't break anything else
+
+This is tedious, error-prone, and doesn't scale.
+
+## The Solution
+
+DQ AutoFix **automatically analyzes** failed DQ tests and **proposes fixes** with confidence scores:
+
+```
+DQ Test Fails in OpenMetadata
+            ↓
+DQ AutoFix fetches failure details + sample data
+            ↓
+Pattern detection (nulls, duplicates, whitespace, case issues)
+            ↓
+Strategy recommendation with confidence scoring
+            ↓
+Before/After preview + Copy-paste SQL + Rollback guards ✅
+```
+
+---
+
+## Features
+
+
+| Feature                  | Description                                                                             |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| **8 Fix Strategies**     | Mean/median/mode imputation, forward fill, trim whitespace, normalize case, deduplicate |
+| **Confidence Scoring**   | 0-100% score based on data coverage, pattern clarity, reversibility, impact scope       |
+| **Before/After Preview** | See exactly what will change before applying                                            |
+| **Copy-Paste SQL**       | Ready-to-run fix SQL with syntax highlighting                                           |
+| **Rollback Guards**      | Backup SQL generated for every fix                                                      |
+| **Modern Web UI**        | Fast, responsive dashboard for reviewing fixes                                          |
+| **REST API**             | Full API for integration with other tools                                               |
+
+
+---
 
 ## Quick Start
 
@@ -28,263 +72,252 @@ DQ AutoFix is a repair-suggester service that:
 make docker-up
 ```
 
-Wait for services to start (2-5 minutes). OpenMetadata will be available at http://localhost:8585
-
-**Default credentials:**
-- Username: `admin@open-metadata.org`
-- Password: `admin`
+Wait 2-5 minutes for services to start. Access at [http://localhost:8585](http://localhost:8585)  
+**Default login**: `admin@open-metadata.org` / `admin`
 
 ### 2. Get JWT Token
 
-1. Open http://localhost:8585
-2. Login with admin credentials
-3. Go to **Settings** → **Bots** → **ingestion-bot**
-4. Click **Copy Token**
+1. Login to OpenMetadata
+2. Go to **Settings** → **Bots** → **ingestion-bot**
+3. Click **Copy Token**
 
-### 3. Configure Environment
+### 3. Configure & Run
 
 ```bash
 # Install dependencies
 make install
 
-# Create .env file from template
+# Create .env from template
 make env
-```
 
-Edit `.env` and add your token:
-```bash
-OPENMETADATA_HOST=http://localhost:8585
-OPENMETADATA_TOKEN=<your-jwt-token>
-LOG_LEVEL=INFO
-```
+# Edit .env and add your token
+# OPENMETADATA_TOKEN=<your-jwt-token>
 
-### 4. Run the Service
-
-```bash
+# Start the service
 make dev
 ```
 
-- API: http://localhost:8000
-- Interactive docs: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+**Access points:**
 
-### 5. Run Tests
+- Web UI: [http://localhost:8000](http://localhost:8000)
+- API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+- ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
-```bash
-make test
+### 4. Create Some DQ Test Failures
 
-# With coverage
-make test-cov
-```
+In OpenMetadata:
 
-## Makefile Commands
+1. Go to a table → **Profiler & Data Quality**
+2. Add a test (e.g., `columnValuesToNotBeNull`)
+3. Run the test suite
+4. If tests fail, they'll appear in DQ AutoFix
 
-Run `make help` to see all available commands:
+---
 
-| Command | Description |
-|---------|-------------|
-| `make install` | Install dependencies |
-| `make dev` | Run development server with auto-reload |
-| `make run` | Run production server |
-| `make test` | Run tests |
-| `make test-cov` | Run tests with coverage |
-| `make lint` | Run linter |
-| `make format` | Format code |
-| `make fix` | Auto-fix linting issues |
-| `make typecheck` | Type check src/ |
-| `make typecheck-all` | Type check src/ and tests/ |
-| `make docker-up` | Start OpenMetadata stack |
-| `make docker-down` | Stop OpenMetadata stack |
-| `make docker-logs` | View server logs |
-| `make docker-ps` | Show running containers |
-| `make docker-clean` | Full cleanup with volumes |
-| `make clean` | Clean cache files |
-| `make check` | Check OpenMetadata API |
-| `make api-check` | Check DQ AutoFix API |
+## Fix Strategies
 
-## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| GET | `/api/v1/health` | API health with version info |
-| GET | `/api/v1/failures` | List failed DQ tests |
-| GET | `/api/v1/failures/{id}` | Get specific failure details |
-| POST | `/api/v1/analyze` | Analyze failure and get fix recommendations |
-| POST | `/api/v1/suggest` | Get best fix suggestion with SQL and preview |
-| POST | `/api/v1/preview` | Preview a specific strategy |
-| GET | `/api/v1/strategies` | List available fix strategies |
+| Strategy              | Test Type                  | Confidence | Description                                          |
+| --------------------- | -------------------------- | ---------- | ---------------------------------------------------- |
+| **Mean Imputation**   | `columnValuesToNotBeNull`  | 60-85%     | Replace nulls with column mean                       |
+| **Median Imputation** | `columnValuesToNotBeNull`  | 60-85%     | Replace nulls with column median (outlier-resistant) |
+| **Mode Imputation**   | `columnValuesToNotBeNull`  | 65-80%     | Replace nulls with most frequent value               |
+| **Forward Fill**      | `columnValuesToNotBeNull`  | 70-85%     | Fill nulls with previous non-null (time-series)      |
+| **Trim Whitespace**   | `columnValuesToMatchRegex` | 95-100%    | Remove leading/trailing spaces (lossless)            |
+| **Normalize Case**    | `columnValuesToBeInSet`    | 85-95%     | Convert to lower/upper/title case                    |
+| **Keep First**        | `columnValuesToBeUnique`   | 75-90%     | Remove duplicates, keep first occurrence             |
+| **Keep Last**         | `columnValuesToBeUnique`   | 75-90%     | Remove duplicates, keep last occurrence              |
 
-### Example: Analyze a Failure
 
-```bash
-curl -X POST http://localhost:8000/api/v1/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"testCaseId": "your-test-case-id"}'
-```
+### Confidence Scoring
+
+Each recommendation includes a confidence score based on:
+
+
+| Factor          | Weight | Description                      |
+| --------------- | ------ | -------------------------------- |
+| Data Coverage   | 25%    | How much data we can analyze     |
+| Pattern Clarity | 25%    | How clear the failure pattern is |
+| Reversibility   | 20%    | Can the fix be undone?           |
+| Impact Scope    | 15%    | Percentage of rows affected      |
+| Type Match      | 15%    | Does strategy match data type?   |
+
+
+**Thresholds:**
+
+- 🟢 **High** (≥80%): Safe to apply
+- 🟡 **Medium** (60-80%): Review recommended
+- 🟠 **Low** (40-60%): Use with caution
+- ⚫ **Skip** (<40%): Not recommended
+
+---
+
+## API Reference
+
+
+| Method | Endpoint                | Description                          |
+| ------ | ----------------------- | ------------------------------------ |
+| `GET`  | `/api/v1/health`        | Health check with version            |
+| `GET`  | `/api/v1/failures`      | List all failed DQ tests             |
+| `GET`  | `/api/v1/failures/{id}` | Get failure details                  |
+| `POST` | `/api/v1/analyze`       | Analyze failure, get recommendations |
+| `POST` | `/api/v1/suggest`       | Get best fix with SQL and preview    |
+| `POST` | `/api/v1/preview`       | Preview a specific strategy          |
+| `GET`  | `/api/v1/strategies`    | List available strategies            |
+
 
 ### Example: Get Fix Suggestion
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/suggest \
   -H "Content-Type: application/json" \
-  -d '{"failureId": "your-test-case-id"}'
+  -d '{"failureId": "customer_id_column_values_to_be_not_null_abc123"}'
 ```
 
-## Configuration
+**Response:**
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENMETADATA_HOST` | `http://localhost:8585` | OpenMetadata server URL |
-| `OPENMETADATA_TOKEN` | - | JWT token for authentication (required) |
-| `LOG_LEVEL` | `INFO` | Logging level |
+```json
+{
+  "failureId": "customer_id_column_values_to_be_not_null_abc123",
+  "strategy": "median_imputation",
+  "strategyDescription": "Replace null values with the column median",
+  "confidenceScore": 0.87,
+  "confidenceBreakdown": {
+    "data_coverage": 0.95,
+    "pattern_clarity": 0.90,
+    "reversibility": 0.50,
+    "impact_scope": 0.98,
+    "type_match": 1.0
+  },
+  "preview": {
+    "beforeSample": [{"id": 1, "customer_id": null}],
+    "afterSample": [{"id": 1, "customer_id": 45892}],
+    "changesSummary": "Replace 127 null values with median 45892",
+    "affectedRows": 127
+  },
+  "fixSql": "UPDATE customers SET customer_id = 45892 WHERE customer_id IS NULL;",
+  "rollbackSql": "-- Backup created before fix\nCREATE TABLE customers_backup_20260419 AS SELECT * FROM customers WHERE customer_id IS NULL;"
+}
+```
 
-## Project Structure
+---
+
+## Architecture
 
 ```
 openmetadata-dq-autofix/
 ├── src/dq_autofix/
-│   ├── __init__.py              # Package version
-│   ├── main.py                  # FastAPI application
+│   ├── main.py                  # FastAPI app + static file serving
 │   ├── config.py                # Pydantic Settings
 │   ├── api/
 │   │   ├── routes.py            # API endpoints
 │   │   └── schemas.py           # Request/Response models
 │   ├── analyzer/
-│   │   ├── failure_analyzer.py  # Main analysis orchestrator
-│   │   ├── pattern_detector.py  # Data pattern detection
-│   │   └── sample_fetcher.py    # Sample data fetching
+│   │   ├── failure_analyzer.py  # Main orchestrator
+│   │   ├── pattern_detector.py  # Pattern detection
+│   │   └── sample_fetcher.py    # Data fetching
 │   ├── strategies/
-│   │   ├── base.py              # FixStrategy base class
+│   │   ├── base.py              # FixStrategy interface
 │   │   ├── registry.py          # Strategy registry
-│   │   ├── null_imputation.py   # Mean, median, mode, forward fill
-│   │   ├── normalization.py     # Trim, case normalization
-│   │   └── deduplication.py     # Keep first/last
+│   │   ├── null_imputation.py   # Null handling strategies
+│   │   ├── normalization.py     # Trim, case strategies
+│   │   └── deduplication.py     # Dedupe strategies
 │   ├── confidence/
-│   │   └── scorer.py            # Confidence scoring with patterns
+│   │   └── scorer.py            # Confidence scoring
 │   ├── preview/
-│   │   ├── diff_generator.py    # Before/after diff utilities
-│   │   ├── sql_generator.py     # SQL building utilities
-│   │   └── rollback.py          # Backup/restore SQL
+│   │   ├── diff_generator.py    # Before/after diffs
+│   │   ├── sql_generator.py     # SQL generation
+│   │   └── rollback.py          # Rollback SQL
 │   └── openmetadata/
-│       ├── client.py            # OpenMetadata API client
+│       ├── client.py            # OM API client
 │       └── models.py            # Data models
-├── tests/
-│   ├── test_analyzer/           # Analyzer tests
-│   ├── test_strategies/         # Strategy tests
-│   ├── test_confidence/         # Confidence scorer tests
-│   ├── test_preview/            # Preview utilities tests
-│   ├── test_api.py              # API tests
-│   └── test_client.py           # Client tests
+├── static/                      # Web UI
+│   ├── index.html
+│   ├── styles.css
+│   └── app.js
+├── tests/                       # 249 tests
 ├── docker-compose.yml           # OpenMetadata stack
-├── Makefile                     # Development commands
-├── pyproject.toml               # Project configuration
-└── README.md
+└── Makefile                     # Dev commands
 ```
+
+---
 
 ## Development
 
-### Code Quality
-
-This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting:
+### Commands
 
 ```bash
-# Check for issues
-make lint
-
-# Auto-fix issues
-make fix
-
-# Format code
-make format
+make install      # Install dependencies
+make dev          # Run with auto-reload
+make test         # Run all tests
+make test-cov     # Tests with coverage
+make lint         # Check code style
+make format       # Format code
+make typecheck    # Type check with mypy
+make docker-up    # Start OpenMetadata
+make docker-down  # Stop OpenMetadata
 ```
 
-### Editor Setup
-
-The project includes configuration for:
-- **Zed**: `.zed/settings.json` with ruff and pyright
-- **EditorConfig**: `.editorconfig` for consistent styling
-
-Format on save is enabled by default.
-
-### Running Tests
+### Testing
 
 ```bash
-# Run all tests
+# Run all 249 tests
 make test
 
-# Run with verbose output
-uv run pytest -v
-
-# Run with coverage report
-make test-cov
-
 # Run specific test file
-uv run pytest tests/test_api.py -v
+uv run pytest tests/test_integration.py -v
+
+# Run with coverage
+make test-cov
 ```
 
-## Docker Commands
 
-```bash
-# Start OpenMetadata
-make docker-up
+| Test Suite  | Tests   | Coverage                    |
+| ----------- | ------- | --------------------------- |
+| Strategies  | 77      | null, trim, case, dedupe    |
+| Analyzer    | 70      | pattern detection, fetching |
+| Confidence  | 26      | scoring logic               |
+| Preview     | 17      | diff, SQL generation        |
+| API         | 17      | endpoints                   |
+| Integration | 26      | end-to-end                  |
+| Client      | 8       | OM API client               |
+| **Total**   | **249** | -                           |
 
-# Check status
-make docker-ps
 
-# View logs
-make docker-logs
+---
 
-# Stop services
-make docker-down
+## Configuration
 
-# Full cleanup (removes data)
-make docker-clean
-```
 
-## Fix Strategies
+| Variable             | Default                 | Description          |
+| -------------------- | ----------------------- | -------------------- |
+| `OPENMETADATA_HOST`  | `http://localhost:8585` | OpenMetadata URL     |
+| `OPENMETADATA_TOKEN` | -                       | JWT token (required) |
+| `LOG_LEVEL`          | `INFO`                  | Logging level        |
 
-| Strategy | Test Type | Reversibility | Description |
-|----------|-----------|---------------|-------------|
-| Mean Imputation | `columnValuesToNotBeNull` | 50% | Replace nulls with column mean |
-| Median Imputation | `columnValuesToNotBeNull` | 50% | Replace nulls with column median |
-| Mode Imputation | `columnValuesToNotBeNull` | 60% | Replace nulls with most frequent value |
-| Forward Fill | `columnValuesToNotBeNull` | 70% | Fill nulls with previous non-null value |
-| Trim Whitespace | `columnValuesToMatchRegex` | 100% | Remove leading/trailing spaces |
-| Normalize Case | `columnValuesToBeInSet` | 90% | Convert to lower/upper/title case |
-| Keep First | `columnValuesToBeUnique` | 0% | Remove duplicates, keep first occurrence |
-| Keep Last | `columnValuesToBeUnique` | 0% | Remove duplicates, keep last occurrence |
 
-### Confidence Scoring
-
-Each fix recommendation includes a confidence score (0-100%) based on:
-- **Data Coverage** (25%): How much data we can analyze
-- **Pattern Clarity** (25%): How clear the failure pattern is
-- **Reversibility** (20%): Can the fix be undone?
-- **Impact Scope** (15%): Percentage of rows affected
-- **Type Match** (15%): Does the strategy match the data type?
-
-Thresholds:
-- **High** (≥80%): Auto-suggest with green indicator
-- **Medium** (60-80%): Suggest with warning
-- **Low** (40-60%): Flag for review
-- **Skip** (<40%): Don't suggest
+---
 
 ## Tech Stack
 
-- **Backend**: FastAPI, Pydantic v2, httpx
+- **Backend**: FastAPI, Pydantic v2, httpx (async)
+- **Frontend**: Vanilla JS, CSS (no frameworks)
 - **Package Manager**: uv
-- **Testing**: pytest, pytest-asyncio, pytest-cov (223 tests)
-- **Linting**: Ruff
+- **Testing**: pytest, pytest-asyncio (249 tests)
+- **Linting**: Ruff (strict mode)
 - **Type Checking**: mypy (strict mode)
 - **Infrastructure**: Docker Compose, OpenMetadata 1.6.2
+
+---
 
 ## Links
 
 - [OpenMetadata](https://open-metadata.org/)
 - [OpenMetadata Docs](https://docs.open-metadata.org/)
-- [Issue #26661](https://github.com/open-metadata/OpenMetadata/issues/26661)
-- [WeMakeDevs Hackathon](https://wemakedevs.org/)
+- [Hackathon Issue #26661](https://github.com/open-metadata/OpenMetadata/issues/26661)
+- [WeMakeDevs](https://wemakedevs.org/)
+
+---
 
 ## License
 
