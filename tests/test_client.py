@@ -1,9 +1,16 @@
 """OpenMetadata client tests."""
 
+from datetime import UTC, datetime
+
 import pytest
 
 from dq_autofix.openmetadata.client import OpenMetadataClient
-from dq_autofix.openmetadata.models import TestCaseResult
+from dq_autofix.openmetadata.models import (
+    TestCaseResult,
+    TestCaseResultSummary,
+    TestResultStatus,
+    TestResultValue,
+)
 from tests.conftest import requires_openmetadata
 
 
@@ -54,3 +61,70 @@ async def test_client_close(om_client: OpenMetadataClient):
     """Test that client can be closed properly."""
     await om_client.close()
     assert om_client._http_client is None
+
+
+class TestGetAffectedCount:
+    """Tests for TestCaseResultSummary.get_affected_count()."""
+
+    def test_returns_failed_rows_when_present(self):
+        """Test that failedRows is returned when available."""
+        result = TestCaseResultSummary(
+            status=TestResultStatus.FAILED,
+            timestamp=datetime.now(UTC),
+            failed_rows=5,
+        )
+        assert result.get_affected_count() == 5
+
+    def test_extracts_null_count_from_test_result_value(self):
+        """Test extraction of nullCount from testResultValue."""
+        result = TestCaseResultSummary(
+            status=TestResultStatus.FAILED,
+            timestamp=datetime.now(UTC),
+            test_result_value=[
+                TestResultValue(name="nullCount", value="3"),
+            ],
+        )
+        assert result.get_affected_count() == 3
+
+    def test_computes_duplicates_from_value_and_unique_count(self):
+        """Test computation of duplicates from valueCount - uniqueCount."""
+        result = TestCaseResultSummary(
+            status=TestResultStatus.FAILED,
+            timestamp=datetime.now(UTC),
+            test_result_value=[
+                TestResultValue(name="valueCount", value="18"),
+                TestResultValue(name="uniqueCount", value="14"),
+            ],
+        )
+        assert result.get_affected_count() == 4  # 18 - 14 = 4 duplicates
+
+    def test_prefers_failed_rows_over_test_result_value(self):
+        """Test that failedRows takes precedence over testResultValue."""
+        result = TestCaseResultSummary(
+            status=TestResultStatus.FAILED,
+            timestamp=datetime.now(UTC),
+            failed_rows=10,
+            test_result_value=[
+                TestResultValue(name="nullCount", value="5"),
+            ],
+        )
+        assert result.get_affected_count() == 10
+
+    def test_returns_none_when_no_data_available(self):
+        """Test returns None when no count data is available."""
+        result = TestCaseResultSummary(
+            status=TestResultStatus.FAILED,
+            timestamp=datetime.now(UTC),
+        )
+        assert result.get_affected_count() is None
+
+    def test_handles_invalid_values_gracefully(self):
+        """Test that invalid values don't cause errors."""
+        result = TestCaseResultSummary(
+            status=TestResultStatus.FAILED,
+            timestamp=datetime.now(UTC),
+            test_result_value=[
+                TestResultValue(name="nullCount", value="not-a-number"),
+            ],
+        )
+        assert result.get_affected_count() is None
