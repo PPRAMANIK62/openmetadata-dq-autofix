@@ -1,6 +1,6 @@
 # DQ AutoFix
 
-> AI-powered repair suggestions for failed OpenMetadata Data Quality checks
+> Automated repair suggestions for failed OpenMetadata Data Quality checks
 
 [Python 3.14+](https://www.python.org/downloads/)
 [FastAPI](https://fastapi.tiangolo.com/)
@@ -10,6 +10,22 @@
 **Hackathon**: WeMakeDevs × OpenMetadata "Back to the Metadata" (Apr 17-26, 2026)  
 **Track**: Paradox #T-02 — Data Observability  
 **Issue**: [#26661 - Propose automated fixes for failed Data Quality checks](https://github.com/open-metadata/OpenMetadata/issues/26661)
+
+## Demo
+
+[Watch Demo](https://youtu.be/rz_JBwoxVCI)
+
+> Click the image above to watch the demo video
+
+### Screenshots
+
+**Trim Whitespace Strategy** - 94% confidence, removes leading/trailing spaces
+
+Trim Whitespace
+
+**Mode Imputation Strategy** - 81% confidence, replaces NULL with most frequent value
+
+Mode Imputation
 
 ---
 
