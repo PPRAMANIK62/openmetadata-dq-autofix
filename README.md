@@ -21,11 +21,11 @@
 
 **Trim Whitespace Strategy** - 94% confidence, removes leading/trailing spaces
 
-Trim Whitespace
+![Trim Whitespace](assets/screenshot-trim-whitespace.png)
 
 **Mode Imputation Strategy** - 81% confidence, replaces NULL with most frequent value
 
-Mode Imputation
+![Mode Imputation](assets/screenshot-mode-imputation.png)
 
 ---
 
