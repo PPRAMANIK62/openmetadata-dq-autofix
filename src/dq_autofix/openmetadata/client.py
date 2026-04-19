@@ -7,6 +7,7 @@ import httpx
 
 from dq_autofix.config import Settings
 from dq_autofix.openmetadata.models import (
+    ColumnProfile,
     SampleData,
     TableProfile,
     TestCaseResult,
@@ -61,7 +62,11 @@ class OpenMetadataClient:
         try:
             response = await client.get(
                 "/api/v1/dataQuality/testCases",
-                params={"testCaseStatus": "Failed", "limit": 100},
+                params={
+                    "testCaseStatus": "Failed",
+                    "limit": 100,
+                    "fields": "testCaseResult",  # Include test result with affected counts
+                },
             )
             response.raise_for_status()
             data = response.json()
@@ -107,7 +112,10 @@ class OpenMetadataClient:
         try:
             response = await client.get(
                 "/api/v1/dataQuality/testCases",
-                params={"limit": 200},
+                params={
+                    "limit": 200,
+                    "fields": "testCaseResult",  # Include test result with affected counts
+                },
             )
             response.raise_for_status()
             data = response.json()
@@ -240,6 +248,98 @@ class OpenMetadataClient:
             raise OpenMetadataClientError(
                 f"Failed to fetch table profile for {table_fqn}: {e}"
             ) from e
+
+    async def get_column_profiles(self, table_fqn: str) -> dict[str, ColumnProfile] | None:
+        """Get column profiles with statistics (mean, median, stddev).
+
+        This uses the dedicated /columnProfile endpoint which is the correct
+        way to fetch column-level statistics in OpenMetadata 1.6+.
+
+        Args:
+            table_fqn: Fully qualified table name.
+
+        Returns:
+            Dictionary mapping column name to ColumnProfile, or None if unavailable.
+        """
+        import time
+
+        client = await self._get_http_client()
+
+        try:
+            # First get the table ID
+            encoded_fqn = table_fqn.replace("/", "%2F")
+            table_response = await client.get(f"/api/v1/tables/name/{encoded_fqn}")
+            if table_response.status_code == 404:
+                logger.debug(f"Table not found: {table_fqn}")
+                return None
+            table_response.raise_for_status()
+            table_data = table_response.json()
+            table_id = table_data.get("id")
+
+            if not table_id:
+                logger.debug(f"No table ID found for: {table_fqn}")
+                return None
+
+            # The columnProfile endpoint requires startTs and endTs parameters
+            # Use a wide time range to get all available profile data
+            end_ts = int(time.time() * 1000)  # Current time in milliseconds
+            start_ts = end_ts - (30 * 24 * 60 * 60 * 1000)  # 30 days ago
+
+            response = await client.get(
+                f"/api/v1/tables/{table_id}/columnProfile",
+                params={"startTs": start_ts, "endTs": end_ts},
+            )
+            if response.status_code == 404:
+                logger.debug(f"Column profile not found for table ID: {table_id}")
+                return None
+            if response.status_code == 400:
+                # May indicate no profile data exists
+                logger.debug(f"Column profile request returned 400 for {table_fqn}")
+                return None
+            response.raise_for_status()
+
+            data = response.json()
+
+            # Parse into ColumnProfile objects keyed by column name
+            profiles: dict[str, ColumnProfile] = {}
+
+            # Handle different response formats - the API returns {data: [...]}
+            columns_data = data.get("data", data.get("columns", data.get("columnProfile", [])))
+            if isinstance(columns_data, list):
+                for col_data in columns_data:
+                    try:
+                        profile = ColumnProfile.model_validate(col_data)
+                        profiles[profile.name] = profile
+                    except Exception as e:
+                        logger.warning(f"Failed to parse column profile: {e}")
+
+            return profiles if profiles else None
+
+        except httpx.HTTPError as e:
+            logger.warning(f"Failed to fetch column profile for {table_fqn}: {e}")
+            return None
+
+    async def get_table_id(self, table_fqn: str) -> str | None:
+        """Get table UUID from fully qualified name.
+
+        Args:
+            table_fqn: Fully qualified table name.
+
+        Returns:
+            Table UUID or None if not found.
+        """
+        client = await self._get_http_client()
+
+        try:
+            encoded_fqn = table_fqn.replace("/", "%2F")
+            response = await client.get(f"/api/v1/tables/name/{encoded_fqn}")
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            table_id: str | None = response.json().get("id")
+            return table_id
+        except httpx.HTTPError:
+            return None
 
     async def get_test_case_results(
         self, test_case_fqn: str, limit: int = 10
