@@ -113,6 +113,8 @@ class StrategyRegistry:
         Returns:
             List of (strategy, confidence) tuples, sorted by confidence descending.
         """
+        if context.test_type is None:
+            return []
         strategies = self.get_strategies_for_test_type(context.test_type)
 
         results: list[tuple[FixStrategy, ConfidenceResult]] = []

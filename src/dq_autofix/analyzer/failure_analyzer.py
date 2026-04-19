@@ -146,7 +146,8 @@ class FailureAnalyzer:
 
         patterns = self.detector.detect_patterns(context)
 
-        strategies = self.registry.get_strategies_for_test_type(context.test_type)
+        test_type = context.test_type or ""
+        strategies = self.registry.get_strategies_for_test_type(test_type)
         recommendations = self.scorer.score_multiple_strategies(
             strategies, context, patterns, min_confidence
         )

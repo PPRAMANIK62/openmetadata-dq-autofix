@@ -60,7 +60,7 @@ def _convert_to_failure_response(tc: TestCaseResult) -> FailureResponse:
         name=tc.name,
         display_name=tc.display_name,
         description=tc.description,
-        test_definition=tc.test_definition,
+        test_definition=tc.test_definition or "unknown",
         table_fqn=tc.table_fqn,
         column_name=tc.column_name,
         test_suite=tc.test_suite,
@@ -364,8 +364,8 @@ async def preview_fix(
     running the full recommendation engine.
     """
     suggest_request = SuggestRequest(
-        failure_id=request.failure_id,
-        strategy_override=request.strategy,
+        failureId=request.failure_id,
+        strategyOverride=request.strategy,
     )
     return await suggest_fix(suggest_request, client)
 
