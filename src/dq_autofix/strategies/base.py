@@ -40,15 +40,21 @@ class FailureContext:
         return self.test_case.column_name
 
     @property
-    def test_type(self) -> str:
+    def test_type(self) -> str | None:
         """Get the test definition type."""
         return self.test_case.test_definition
 
     @property
     def failed_rows(self) -> int | None:
-        """Get the number of failed rows."""
+        """Get the number of failed/affected rows.
+
+        Uses get_affected_count() which extracts the count from:
+        - failedRows field (for uniqueness tests)
+        - testResultValue nullCount (for null tests)
+        - Computed from testResultValue (valueCount - uniqueCount)
+        """
         if self.test_case.result:
-            return self.test_case.result.failed_rows
+            return self.test_case.result.get_affected_count()
         return None
 
     @property

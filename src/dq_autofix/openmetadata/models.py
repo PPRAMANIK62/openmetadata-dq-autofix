@@ -38,7 +38,7 @@ class TestResultValue(BaseModel):
 class TestCaseResultSummary(BaseModel):
     """Summary of test case execution result."""
 
-    status: TestResultStatus
+    status: TestResultStatus = Field(alias="testCaseStatus")
     timestamp: datetime
     failed_rows: int | None = Field(default=None, alias="failedRows")
     passed_rows: int | None = Field(default=None, alias="passedRows")
@@ -47,6 +47,46 @@ class TestCaseResultSummary(BaseModel):
     test_result_value: list[TestResultValue] | None = Field(default=None, alias="testResultValue")
 
     model_config = {"populate_by_name": True}
+
+    def get_affected_count(self) -> int | None:
+        """Get the count of affected rows from various sources.
+
+        For different test types, the affected count may come from:
+        - failedRows field (uniqueness tests)
+        - testResultValue with name "nullCount" (null tests)
+        - testResultValue with name "valueCount" minus "uniqueCount" (uniqueness)
+
+        Returns:
+            The number of affected rows, or None if not available.
+        """
+        # First try the explicit failedRows field
+        if self.failed_rows is not None:
+            return self.failed_rows
+
+        # Try to extract from testResultValue
+        if self.test_result_value:
+            values = {v.name: v.value for v in self.test_result_value}
+
+            # For null tests: use nullCount
+            if "nullCount" in values and values["nullCount"] is not None:
+                try:
+                    return int(values["nullCount"])
+                except (ValueError, TypeError):
+                    pass
+
+            # For uniqueness tests: valueCount - uniqueCount = duplicates
+            if "valueCount" in values and "uniqueCount" in values:
+                value_str = values["valueCount"]
+                unique_str = values["uniqueCount"]
+                if value_str is not None and unique_str is not None:
+                    try:
+                        value_count = int(value_str)
+                        unique_count = int(unique_str)
+                        return value_count - unique_count
+                    except (ValueError, TypeError):
+                        pass
+
+        return None
 
 
 class TestCaseResult(BaseModel):
@@ -63,7 +103,7 @@ class TestCaseResult(BaseModel):
     test_suite: str | None = Field(default=None, alias="testSuite")
     parameter_values: list[dict[str, Any]] | None = Field(default=None, alias="parameterValues")
     test_case_status: TestResultStatus | None = Field(default=None, alias="testCaseStatus")
-    result: TestCaseResultSummary | None = None
+    result: TestCaseResultSummary | None = Field(default=None, alias="testCaseResult")
 
     model_config = {"populate_by_name": True}
 
